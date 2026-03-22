@@ -7,7 +7,8 @@ import numpy as np
 
 # Misc
 img2mse = lambda x, y : torch.mean((x - y) ** 2)
-mse2psnr = lambda x : -10. * torch.log(x) / torch.log(torch.Tensor([10.]))
+# [Apple Silicon 适配] 确保 Tensor 被分配到与输入相同的设备上
+mse2psnr = lambda x : -10. * torch.log(x) / torch.log(torch.Tensor([10.]).to(x.device))
 to8b = lambda x : (255*np.clip(x,0,1)).astype(np.uint8)
 
 
@@ -33,7 +34,7 @@ class Embedder:
         else:
             freq_bands = torch.linspace(2.**0., 2.**max_freq, steps=N_freqs)
             
-        for freq in freq_bands:
+        for freq in freq_bands.tolist():
             for p_fn in self.kwargs['periodic_fns']:
                 embed_fns.append(lambda x, p_fn=p_fn, freq=freq : p_fn(x * freq))
                 out_dim += d
@@ -151,7 +152,7 @@ class NeRF(nn.Module):
 
 # Ray helpers
 def get_rays(H, W, K, c2w):
-    i, j = torch.meshgrid(torch.linspace(0, W-1, W), torch.linspace(0, H-1, H))  # pytorch's meshgrid has indexing='ij'
+    i, j = torch.meshgrid(torch.linspace(0, W-1, W, device=c2w.device), torch.linspace(0, H-1, H, device=c2w.device))  # pytorch's meshgrid has indexing='ij'
     i = i.t()
     j = j.t()
     dirs = torch.stack([(i-K[0][2])/K[0][0], -(j-K[1][2])/K[1][1], -torch.ones_like(i)], -1)
@@ -202,10 +203,12 @@ def sample_pdf(bins, weights, N_samples, det=False, pytest=False):
 
     # Take uniform samples
     if det:
-        u = torch.linspace(0., 1., steps=N_samples)
+        # [Apple Silicon 适配] 明确指定设备，防止 CPU Tensor 与 MPS Tensor 混合运算
+        u = torch.linspace(0., 1., steps=N_samples, device=cdf.device)
         u = u.expand(list(cdf.shape[:-1]) + [N_samples])
     else:
-        u = torch.rand(list(cdf.shape[:-1]) + [N_samples])
+        # [Apple Silicon 适配] 明确指定设备，防止 CPU Tensor 与 MPS Tensor 混合运算
+        u = torch.rand(list(cdf.shape[:-1]) + [N_samples], device=cdf.device)
 
     # Pytest, overwrite u with numpy's fixed random numbers
     if pytest:
@@ -216,7 +219,8 @@ def sample_pdf(bins, weights, N_samples, det=False, pytest=False):
             u = np.broadcast_to(u, new_shape)
         else:
             u = np.random.rand(*new_shape)
-        u = torch.Tensor(u)
+        # [Apple Silicon 适配] 将 Numpy 转换的 Tensor 移动到对应设备
+        u = torch.Tensor(u).to(cdf.device)
 
     # Invert CDF
     u = u.contiguous()
@@ -228,8 +232,9 @@ def sample_pdf(bins, weights, N_samples, det=False, pytest=False):
     # cdf_g = tf.gather(cdf, inds_g, axis=-1, batch_dims=len(inds_g.shape)-2)
     # bins_g = tf.gather(bins, inds_g, axis=-1, batch_dims=len(inds_g.shape)-2)
     matched_shape = [inds_g.shape[0], inds_g.shape[1], cdf.shape[-1]]
-    cdf_g = torch.gather(cdf.unsqueeze(1).expand(matched_shape), 2, inds_g)
-    bins_g = torch.gather(bins.unsqueeze(1).expand(matched_shape), 2, inds_g)
+    # [Apple Silicon 适配] MPS 在处理非连续内存的 expand 视图时 gather 可能会出错，强制 contiguous()
+    cdf_g = torch.gather(cdf.unsqueeze(1).expand(matched_shape).contiguous(), 2, inds_g)
+    bins_g = torch.gather(bins.unsqueeze(1).expand(matched_shape).contiguous(), 2, inds_g)
 
     denom = (cdf_g[...,1]-cdf_g[...,0])
     denom = torch.where(denom<1e-5, torch.ones_like(denom), denom)
