@@ -34,7 +34,7 @@ def pose_spherical(theta, phi, radius):
     return c2w
 
 
-def load_blender_data(basedir, half_res=False, testskip=1):
+def load_blender_data(basedir, half_res=False, testskip=1, num_views=-1):
     splits = ['train', 'val', 'test']
     metas = {}
     for s in splits:
@@ -43,11 +43,13 @@ def load_blender_data(basedir, half_res=False, testskip=1):
 
     all_imgs = []
     all_poses = []
+    all_depths = []
     counts = [0]
     for s in splits:
         meta = metas[s]
         imgs = []
         poses = []
+        depths_list = []
         if s=='train' or testskip==0:
             skip = 1
         else:
@@ -55,18 +57,47 @@ def load_blender_data(basedir, half_res=False, testskip=1):
             
         for frame in meta['frames'][::skip]:
             fname = os.path.join(basedir, frame['file_path'] + '.png')
-            imgs.append(imageio.imread(fname))
+            img = imageio.imread(fname)
+            imgs.append(img)
+            
+            # Extract depth: check for depth map or use alpha channel
+            depth_fname = os.path.join(basedir, frame['file_path'] + '_depth.png')
+            if os.path.exists(depth_fname):
+                depth_img = imageio.imread(depth_fname)
+                if len(depth_img.shape) >= 3:
+                    depth_img = depth_img[..., 0]
+                depths_list.append((depth_img / 255.).astype(np.float32))
+            else:
+                # use alpha channel as proxy depth (Occupancy Mask)
+                if img.shape[-1] == 4:
+                    depths_list.append((img[..., 3] / 255.).astype(np.float32))
+                else:
+                    depths_list.append(np.ones_like(img[..., 0]).astype(np.float32))
+            
             poses.append(np.array(frame['transform_matrix']))
+        
+        # Few-shot selection logic for training set
+        if s == 'train' and num_views > 0:
+            idx = np.round(np.linspace(0, len(imgs) - 1, num_views)).astype(int)
+            print(f"[Few-Shot] Selecting {num_views} train images at indices: {idx}")
+            imgs = [imgs[i] for i in idx]
+            depths_list = [depths_list[i] for i in idx]
+            poses = [poses[i] for i in idx]
+
         imgs = (np.array(imgs) / 255.).astype(np.float32) # keep all 4 channels (RGBA)
         poses = np.array(poses).astype(np.float32)
+        depths_arr = np.array(depths_list).astype(np.float32)
+        
         counts.append(counts[-1] + imgs.shape[0])
         all_imgs.append(imgs)
         all_poses.append(poses)
+        all_depths.append(depths_arr)
     
     i_split = [np.arange(counts[i], counts[i+1]) for i in range(3)]
     
     imgs = np.concatenate(all_imgs, 0)
     poses = np.concatenate(all_poses, 0)
+    depths = np.concatenate(all_depths, 0)
     
     H, W = imgs[0].shape[:2]
     camera_angle_x = float(meta['camera_angle_x'])
@@ -80,12 +111,15 @@ def load_blender_data(basedir, half_res=False, testskip=1):
         focal = focal/2.
 
         imgs_half_res = np.zeros((imgs.shape[0], H, W, 4))
-        for i, img in enumerate(imgs):
+        depths_half_res = np.zeros((depths.shape[0], H, W))
+        for i, (img, depth) in enumerate(zip(imgs, depths)):
             imgs_half_res[i] = cv2.resize(img, (W, H), interpolation=cv2.INTER_AREA)
+            depths_half_res[i] = cv2.resize(depth, (W, H), interpolation=cv2.INTER_AREA)
         imgs = imgs_half_res
+        depths = depths_half_res
         # imgs = tf.image.resize_area(imgs, [400, 400]).numpy()
 
         
-    return imgs, poses, render_poses, [H, W, focal], i_split
+    return imgs, poses, depths, render_poses, [H, W, focal], i_split
 
 
