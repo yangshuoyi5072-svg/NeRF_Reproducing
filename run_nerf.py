@@ -396,7 +396,7 @@ def render_rays(ray_batch,
 
     if N_importance > 0:
 
-        rgb_map_0, disp_map_0, acc_map_0 = rgb_map, disp_map, acc_map
+        rgb_map_0, disp_map_0, acc_map_0, depth_map_0 = rgb_map, disp_map, acc_map, depth_map
 
         z_vals_mid = .5 * (z_vals[...,1:] + z_vals[...,:-1])
         z_samples = sample_pdf(z_vals_mid, weights[...,1:-1], N_importance, det=(perturb==0.), pytest=pytest)
@@ -410,13 +410,14 @@ def render_rays(ray_batch,
 
         rgb_map, disp_map, acc_map, weights, depth_map = raw2outputs(raw, z_vals, rays_d, raw_noise_std, white_bkgd, pytest=pytest)
 
-    ret = {'rgb_map' : rgb_map, 'disp_map' : disp_map, 'acc_map' : acc_map}
+    ret = {'rgb_map' : rgb_map, 'disp_map' : disp_map, 'acc_map' : acc_map, 'depth_map': depth_map}
     if retraw:
         ret['raw'] = raw
     if N_importance > 0:
         ret['rgb0'] = rgb_map_0
         ret['disp0'] = disp_map_0
         ret['acc0'] = acc_map_0
+        ret['depth0'] = depth_map_0
         ret['z_std'] = torch.std(z_samples, dim=-1, unbiased=False)  # [N_rays]
 
     for k in ret:
@@ -591,11 +592,20 @@ def train():
             print('Loaded depths', depths.shape)
         i_train, i_val, i_test = i_split
 
-        near = 2.
-        far = 6.
+        if args.use_depth:
+            near = 0.1
+            far = 8.0
+        else:
+            near = 2.
+            far = 6.
 
+        # Safely disable white background rendering for RGB-only physical datasets
         if args.white_bkgd:
-            images = images[...,:3]*images[...,-1:] + (1.-images[...,-1:])
+            if images.shape[-1] == 4:
+                images = images[...,:3]*images[...,-1:] + (1.-images[...,-1:])
+            else:
+                args.white_bkgd = False
+                images = images[...,:3]
         else:
             images = images[...,:3]
 
@@ -774,9 +784,10 @@ def train():
     start = start + 1
     
     with timer_report():
-        for i in trange(start, N_iters):
+        pbar = trange(start, N_iters)
+        for i in pbar:
             time0 = time.time()
-            target_mask = None
+            target_d = None
 
             # Sample random ray batch
             if use_batching:
@@ -825,7 +836,7 @@ def train():
                     batch_rays = torch.stack([rays_o, rays_d], 0)
                     target_s = target[select_coords[:, 0], select_coords[:, 1]]  # (N_rand, 3)
                     if args.use_depth and args.dataset_type == 'blender':
-                        target_mask = target_depth[select_coords[:, 0], select_coords[:, 1]] # (N_rand,)
+                        target_d = target_depth[select_coords[:, 0], select_coords[:, 1]] # (N_rand,)
 
             #####  Core optimization loop  #####
             rgb, disp, acc, extras = render(H, W, K, chunk=args.chunk, rays=batch_rays,
@@ -839,21 +850,30 @@ def train():
             psnr = mse2psnr(img_loss)
 
             # [DS-NeRF Phase 2] Mask / Occupancy Loss
-            mask_loss_val = 0.0
-            if args.use_depth and target_mask is not None:
-                mask_loss = img2mse(acc, target_mask)
-                loss = loss + args.depth_lambda * mask_loss
-                mask_loss_val += mask_loss.item()
+            depth_loss_val = 0.0
+            
+            # Dynamic Depth Decay: reduces depth weight by 10x every 10,000 steps
+            current_depth_lambda = args.depth_lambda * (0.1 ** (global_step / 10000.0))
+
+            if args.use_depth and target_d is not None:
+                # We use L1 loss (Mean Absolute Error) for real physical depths.
+                # Only penalize where target depth is valid (e.g. > 0 and < 100 meters, typically Indoor datasets max out around 10-20m)
+                valid_depth = (target_d > 0.1) & (target_d < 100.0)
+                if torch.any(valid_depth):
+                    depth_loss_fine = torch.nn.functional.l1_loss(extras['depth_map'][valid_depth], target_d[valid_depth])
+                    loss = loss + current_depth_lambda * depth_loss_fine
+                    depth_loss_val += depth_loss_fine.item()
 
             if 'rgb0' in extras:
                 img_loss0 = img2mse(extras['rgb0'], target_s)
                 loss = loss + img_loss0
                 psnr0 = mse2psnr(img_loss0)
                 
-                if args.use_depth and target_mask is not None and 'acc0' in extras:
-                    mask_loss0 = img2mse(extras['acc0'], target_mask)
-                    loss = loss + args.depth_lambda * mask_loss0
-                    mask_loss_val += mask_loss0.item()
+                if args.use_depth and target_d is not None and 'depth0' in extras:
+                    if torch.any(valid_depth):
+                        depth_loss_coarse = torch.nn.functional.l1_loss(extras['depth0'][valid_depth], target_d[valid_depth])
+                        loss = loss + current_depth_lambda * depth_loss_coarse
+                        depth_loss_val += depth_loss_coarse.item()
 
             loss.backward()
             optimizer.step()
@@ -903,10 +923,22 @@ def train():
 
         
             if i%args.i_print==0:
+                rgb_loss_tot = img_loss.item()
+                if 'rgb0' in extras:
+                    rgb_loss_tot += img_loss0.item()
+                    
+                postfix_dict = {
+                    "PSNR": f"{psnr.item():.2f}",
+                    "TotLoss": f"{loss.item():.4f}",
+                    "RGBLoss": f"{rgb_loss_tot:.4f}"
+                }
                 if args.use_depth:
-                    tqdm.write(f"[TRAIN] Iter: {i} Loss: {loss.item():.4f}  PSNR: {psnr.item():.2f}  MaskLoss: {mask_loss_val:.4f}")
-                else:
-                    tqdm.write(f"[TRAIN] Iter: {i} Loss: {loss.item():.4f}  PSNR: {psnr.item():.2f}")
+                    postfix_dict["DepthLossL1"] = f"{depth_loss_val:.4f}"
+                    postfix_dict["DepthWt"] = f"{current_depth_lambda:.4f}"
+                
+                pbar.set_postfix(postfix_dict)
+                # Optional static logging line for terminal history
+                tqdm.write(f"[TRAIN] Iter: {i}  " + "  ".join([f"{k}: {v}" for k, v in postfix_dict.items()]))
 
             global_step += 1
 

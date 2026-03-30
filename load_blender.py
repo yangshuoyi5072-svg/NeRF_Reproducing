@@ -60,19 +60,24 @@ def load_blender_data(basedir, half_res=False, testskip=1, num_views=-1):
             img = imageio.imread(fname)
             imgs.append(img)
             
-            # Extract depth: check for depth map or use alpha channel
-            depth_fname = os.path.join(basedir, frame['file_path'] + '_depth.png')
-            if os.path.exists(depth_fname):
-                depth_img = imageio.imread(depth_fname)
-                if len(depth_img.shape) >= 3:
-                    depth_img = depth_img[..., 0]
-                depths_list.append((depth_img / 255.).astype(np.float32))
+            # Extract depth: check for SpatialVID explicit .npy mapping, fallback to _depth.png, then alpha occupancy
+            if 'depth_path' in frame and os.path.exists(os.path.join(basedir, frame['depth_path'])):
+                depth_npy_path = os.path.join(basedir, frame['depth_path'])
+                depth_arr = np.load(depth_npy_path).astype(np.float32)
+                depths_list.append(depth_arr)
             else:
-                # use alpha channel as proxy depth (Occupancy Mask)
-                if img.shape[-1] == 4:
-                    depths_list.append((img[..., 3] / 255.).astype(np.float32))
+                depth_fname = os.path.join(basedir, frame['file_path'] + '_depth.png')
+                if os.path.exists(depth_fname):
+                    depth_img = imageio.imread(depth_fname)
+                    if len(depth_img.shape) >= 3:
+                        depth_img = depth_img[..., 0]
+                    depths_list.append((depth_img / 255.).astype(np.float32))
                 else:
-                    depths_list.append(np.ones_like(img[..., 0]).astype(np.float32))
+                    # use alpha channel as proxy depth (Occupancy Mask)
+                    if img.shape[-1] == 4:
+                        depths_list.append((img[..., 3] / 255.).astype(np.float32))
+                    else:
+                        depths_list.append(np.ones_like(img[..., 0]).astype(np.float32))
             
             poses.append(np.array(frame['transform_matrix']))
         
@@ -110,7 +115,8 @@ def load_blender_data(basedir, half_res=False, testskip=1, num_views=-1):
         W = W//2
         focal = focal/2.
 
-        imgs_half_res = np.zeros((imgs.shape[0], H, W, 4))
+        channels = imgs.shape[-1]
+        imgs_half_res = np.zeros((imgs.shape[0], H, W, channels))
         depths_half_res = np.zeros((depths.shape[0], H, W))
         for i, (img, depth) in enumerate(zip(imgs, depths)):
             imgs_half_res[i] = cv2.resize(img, (W, H), interpolation=cv2.INTER_AREA)
@@ -121,5 +127,3 @@ def load_blender_data(basedir, half_res=False, testskip=1, num_views=-1):
 
         
     return imgs, poses, depths, render_poses, [H, W, focal], i_split
-
-
