@@ -19,10 +19,10 @@ from load_blender import load_blender_data
 from load_LINEMOD import load_LINEMOD_data
 
 
-# [Apple Silicon 适配] 优先检查并使用 MPS (Metal Performance Shaders) 加速
+# Use MPS backend to speed things up on Macs
 if torch.backends.mps.is_available():
     device = torch.device("mps")
-    # [Apple Silicon 适配] 设置默认设备为 mps，确保所有新创建的 Tensor 都在 GPU 上
+    # Set default device to mps to avoid silent cpu fallbacks
     if hasattr(torch, 'set_default_device'):
         torch.set_default_device('mps')
 elif torch.cuda.is_available():
@@ -302,7 +302,6 @@ def raw2outputs(raw, z_vals, rays_d, raw_noise_std=0, white_bkgd=False, pytest=F
             noise = torch.Tensor(noise).to(raw.device)
 
     alpha = raw2alpha(raw[...,3] + noise, dists)  # [N_rays, N_samples]
-    # weights = alpha * tf.math.cumprod(1.-alpha + 1e-10, -1, exclusive=True)
     weights = alpha * torch.cumprod(torch.cat([torch.ones((alpha.shape[0], 1), device=alpha.device), 1.-alpha + 1e-10], -1), -1)[:, :-1]
     rgb_map = torch.sum(weights[...,None] * rgb, -2)  # [N_rays, 3]
 
@@ -743,7 +742,6 @@ def train():
     print('VAL views are', i_val)
 
     # Summary writers
-    # writer = SummaryWriter(os.path.join(basedir, 'summaries', expname))
     
     @contextlib.contextmanager
     def timer_report():
@@ -888,7 +886,6 @@ def train():
             ################################
 
             dt = time.time()-time0
-            # print(f"Step: {global_step}, Loss: {loss}, Time: {dt}")
             #####           end            #####
 
             # Rest is logging

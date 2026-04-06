@@ -123,7 +123,6 @@ def load_blender_data(basedir, half_res=False, testskip=1, num_views=-1):
             depths_half_res[i] = cv2.resize(depth, (W, H), interpolation=cv2.INTER_AREA)
         imgs = imgs_half_res
         depths = depths_half_res
-        # imgs = tf.image.resize_area(imgs, [400, 400]).numpy()
 
         
     return imgs, poses, depths, render_poses, [H, W, focal], i_split

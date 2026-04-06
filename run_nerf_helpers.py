@@ -7,7 +7,7 @@ import numpy as np
 
 # Misc
 img2mse = lambda x, y : torch.mean((x - y) ** 2)
-# [Apple Silicon 适配] 确保 Tensor 被分配到与输入相同的设备上
+# Keep tensors on the same device as inputs to avoid crashes
 mse2psnr = lambda x : -10. * torch.log(x) / torch.log(torch.Tensor([10.]).to(x.device))
 to8b = lambda x : (255*np.clip(x,0,1)).astype(np.uint8)
 
@@ -203,11 +203,11 @@ def sample_pdf(bins, weights, N_samples, det=False, pytest=False):
 
     # Take uniform samples
     if det:
-        # [Apple Silicon 适配] 明确指定设备，防止 CPU Tensor 与 MPS Tensor 混合运算
+        # Be explicit about the device, otherwise MPS and CPU tensors might mix up
         u = torch.linspace(0., 1., steps=N_samples, device=cdf.device)
         u = u.expand(list(cdf.shape[:-1]) + [N_samples])
     else:
-        # [Apple Silicon 适配] 明确指定设备，防止 CPU Tensor 与 MPS Tensor 混合运算
+        # Be explicit about the device, otherwise MPS and CPU tensors might mix up
         u = torch.rand(list(cdf.shape[:-1]) + [N_samples], device=cdf.device)
 
     # Pytest, overwrite u with numpy's fixed random numbers
@@ -219,7 +219,7 @@ def sample_pdf(bins, weights, N_samples, det=False, pytest=False):
             u = np.broadcast_to(u, new_shape)
         else:
             u = np.random.rand(*new_shape)
-        # [Apple Silicon 适配] 将 Numpy 转换的 Tensor 移动到对应设备
+        # Move numpy-created tensor to the correct device
         u = torch.Tensor(u).to(cdf.device)
 
     # Invert CDF
@@ -229,10 +229,9 @@ def sample_pdf(bins, weights, N_samples, det=False, pytest=False):
     above = torch.min((cdf.shape[-1]-1) * torch.ones_like(inds), inds)
     inds_g = torch.stack([below, above], -1)  # (batch, N_samples, 2)
 
-    # cdf_g = tf.gather(cdf, inds_g, axis=-1, batch_dims=len(inds_g.shape)-2)
-    # bins_g = tf.gather(bins, inds_g, axis=-1, batch_dims=len(inds_g.shape)-2)
+
     matched_shape = [inds_g.shape[0], inds_g.shape[1], cdf.shape[-1]]
-    # [Apple Silicon 适配] MPS 在处理非连续内存的 expand 视图时 gather 可能会出错，强制 contiguous()
+    # MPS sometimes struggles with gather on non-contiguous expand views, so we force contiguous layout here
     cdf_g = torch.gather(cdf.unsqueeze(1).expand(matched_shape).contiguous(), 2, inds_g)
     bins_g = torch.gather(bins.unsqueeze(1).expand(matched_shape).contiguous(), 2, inds_g)
 
