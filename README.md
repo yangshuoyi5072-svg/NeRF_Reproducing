@@ -29,6 +29,15 @@ cd NeRF_Reproducing
 pip install -r requirements.txt
 ```
 
+## Quick Demo (Hotdog 100k)
+
+If you are using a Mac, you can see a high-quality reconstruction of a hotdog in 30-60 seconds by running:
+```bash
+# Relative path from project root
+bash run_hotdog_demo.sh
+```
+*(Result will be saved to `./logs/hotdog_100k_demo/cinematic_submission/rgb_frames/000.png`)*
+
 ## How To Run?
 
 ### 1. Training with MPS Acceleration
