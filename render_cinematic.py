@@ -7,10 +7,10 @@ import imageio
 import cv2
 from tqdm import tqdm
 
-# Import from run_nerf.py
 from run_nerf import config_parser, create_nerf, render, to8b, device
 from core.helpers import get_rays, ndc_rays
 
+# Camera math
 def trans_t(t): 
     return torch.Tensor([
         [1,0,0,0],
@@ -40,15 +40,12 @@ def pose_spherical(theta, phi, radius):
     return c2w
 
 def generate_cinematic_path(radius_scale=1.0):
-    """15s Cinematic Path (450 frames @ 30fps)"""
     poses = []
     
-    # Segment 1: Slow Orbit (5s, 150 frames)
+    # Path logic
     for theta in np.linspace(-180, 0, 150):
         poses.append(pose_spherical(theta, -43.0, 4.0 * radius_scale))
         
-    # Segment 2: Spiral zoom-in (3s, 90 frames)
-    # Rotating 180 degrees while zooming in from 4.0 to 2.2
     for i in range(90):
         alpha = i / 90.0
         theta = 0 + alpha * 360.0
@@ -56,8 +53,6 @@ def generate_cinematic_path(radius_scale=1.0):
         radius = (4.0 - alpha * 1.8) * radius_scale
         poses.append(pose_spherical(theta, phi, radius))
         
-    # Segment 3: Detail scan (5s, 150 frames)
-    # Slow panning at close range
     for i in range(150):
         alpha = i / 150.0
         theta = 360.0 + alpha * 45.0
@@ -65,7 +60,6 @@ def generate_cinematic_path(radius_scale=1.0):
         radius = 2.2 * radius_scale
         poses.append(pose_spherical(theta, phi, radius))
         
-    # Segment 4: Snap Pull-back (2s, 60 frames)
     for i in range(60):
         alpha = i / 60.0
         theta = 405.0 + alpha * 30.0
@@ -86,7 +80,7 @@ def generate_acc_path(radius_scale=1.0):
 def render_custom_path(args, render_poses, hwf, K, savedir, N_importance_override=None, ckpt_path=None, chunk=1024*32, render_indices=None):
     H, W, focal = hwf
     
-    # [FAILS-SAFE] Load checkpoint first to detect architecture
+    # Load ckpt
     if ckpt_path is not None:
         ckpt_dir = os.path.dirname(ckpt_path)
         args_path = os.path.join(ckpt_dir, "args.txt")
@@ -94,7 +88,7 @@ def render_custom_path(args, render_poses, hwf, K, savedir, N_importance_overrid
         print(f"Pre-loading checkpoint to detect architecture: {ckpt_path}")
         ckpt = torch.load(ckpt_path, map_location=device)
         
-        # [NEW] Synchronize from args.txt if it exists
+        # Sync params
         if os.path.exists(args_path):
             print(f"Syncing parameters from: {args_path}")
             with open(args_path, 'r') as f:
@@ -135,7 +129,7 @@ def render_custom_path(args, render_poses, hwf, K, savedir, N_importance_overrid
     bds_dict = {'near': 0.1, 'far': 10.0} # Wider bounds for flexibility
     render_kwargs_test.update(bds_dict)
     
-    # [IMPORTANT] Override N_importance if requested
+    # Override N_importance
     if N_importance_override is not None:
         render_kwargs_test['N_importance'] = N_importance_override
         print(f"Overriding N_importance to {N_importance_override} for rendering.")
@@ -145,7 +139,7 @@ def render_custom_path(args, render_poses, hwf, K, savedir, N_importance_overrid
     
     os.makedirs(savedir, exist_ok=True)
     
-    # [Apple Silicon] Ensure poses are on the correct device
+    # Mac setup
     render_poses = render_poses.to(device)
     
     print(f"Rendering {len(render_poses)} frames to {savedir}...")
@@ -165,7 +159,7 @@ def render_custom_path(args, render_poses, hwf, K, savedir, N_importance_overrid
                 if not need_acc or os.path.exists(os.path.join(savedir, acc_filename)):
                     continue
             
-            # [NEW] Skip ACC computation if requested to save time
+            # Skip ACC if requested
             rgb, disp, acc, _ = render(H, W, K, chunk=chunk, c2w=c2w[:3,:4], **render_kwargs_test)
             
             rgb_np = rgb.cpu().numpy()
@@ -215,6 +209,15 @@ def main():
                         if key == 'datadir':
                             args.datadir = val
                             print(f"  Setting datadir = {args.datadir}")
+                        elif key == 'dataset_type':
+                            args.dataset_type = val
+                            print(f"  Setting dataset_type = {args.dataset_type}")
+                        elif key == 'no_ndc':
+                            args.no_ndc = (val == 'True')
+                            print(f"  Setting no_ndc = {args.no_ndc}")
+                        elif key == 'spherify':
+                            args.spherify = (val == 'True')
+                            print(f"  Setting spherify = {args.spherify}")
                         elif key == 'white_bkgd':
                             args.white_bkgd = (val == 'True')
                             print(f"  Setting white_bkgd = {args.white_bkgd}")
@@ -246,7 +249,7 @@ def main():
     rgb_poses = generate_cinematic_path(radius_scale=1.0)
     acc_poses = generate_acc_path(radius_scale=1.0)
     
-    # [NEW] Calibration Mode: Use Ground Truth Pose 0 from dataset
+    # Calibration
     if getattr(args, 'gt_pose', False):
         print("CALIBRATION MODE: Overriding path with Test Dataset Pose 0")
         from load_blender import load_blender_data
@@ -280,7 +283,7 @@ def main():
         acc_poses = acc_poses[:1]
         print("SINGLE FRAME MODE: Rendering ONLY Frame 000 for verification.")
     
-    # [NEW] Worker Partitioning
+    # Worker Partitioning
     if args.total_workers > 1:
         print(f"PARALLEL MODE: Worker {args.worker_id}/{args.total_workers}")
         # We partition based on frame index (Modulus)
@@ -301,14 +304,10 @@ def main():
     # Save the 15s RGB video
     imageio.mimwrite(os.path.join(output_dir, f"{args.expname}_cinematic_rgb.mp4"), to8b(rgbs), fps=30, quality=9)
     
-    # [OPTIMIZATION] Skip ACC video if requested
+    # Save ACC videos
     if not getattr(args, 'no_acc', False):
-        # The 5s ACC video can follow the same path or a different one.
-        # If the user specifically wants the orbit-only ACC video, we take the first 150 frames.
-        # Otherwise, we provide the full 15s ACC video as well.
         accs_5s = accs[:150]
         imageio.mimwrite(os.path.join(output_dir, f"{args.expname}_cinematic_acc_5s.mp4"), to8b(accs_5s), fps=30, quality=9)
-        # Also save full ACC
         imageio.mimwrite(os.path.join(output_dir, f"{args.expname}_cinematic_acc_15s.mp4"), to8b(accs), fps=30, quality=9)
     else:
         print("Skipping ACC video synthesis per --no-acc flag.")

@@ -1,6 +1,5 @@
 #!/bin/bash
-# Master Flow Script: The High-Frequency Hotdog Learning Experiment
-# Orchestrates sequencing, training, and visualization.
+# hotdog training flow
 
 export PYTHONPATH=$PYTHONPATH:.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
@@ -8,8 +7,7 @@ ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 ENV_PYTHON="/opt/miniconda3/envs/nerf_env/bin/python"
 PREV_PID=33078
 
-echo "Master Flow Controller Online."
-echo "Waiting for Previous Task (PID: $PREV_PID) to finish..."
+echo "Waiting for previous task..."
 
 # 1. Wait for preceding rendering task
 while kill -0 $PREV_PID 2>/dev/null; do
@@ -18,9 +16,8 @@ done
 
 echo "Previous task finished! Starting Hotdog 100k Evolution Experiment..."
 
-# 2. Start Training (100k iters, Save/Log every 200)
-# We use vanilla settings (Basic code) as requested.
-echo "Stating Training Phase (Approx 10-12 hours)..."
+# 2. Start Training
+echo "Training (100k iters)..."
 $ENV_PYTHON "$ROOT_DIR/run_nerf.py" \
     --config "$ROOT_DIR/configs/hotdog.txt" \
     --N_iters 100000 \
@@ -30,7 +27,7 @@ $ENV_PYTHON "$ROOT_DIR/run_nerf.py" \
 
 echo "Training Complete! Starting Visualization Rendering Phase..."
 
-# 3. Trigger Post-hoc Rendering Loop
+# 3. Post-hoc rendering
 chmod +x "$SCRIPT_DIR/viz_render_loop.sh"
 "$SCRIPT_DIR/viz_render_loop.sh" > output_hotdog_viz_rendering.log 2>&1
 

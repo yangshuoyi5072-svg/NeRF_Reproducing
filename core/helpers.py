@@ -7,7 +7,7 @@ import numpy as np
 
 # Misc
 img2mse = lambda x, y : torch.mean((x - y) ** 2)
-# Keep tensors on the same device as inputs to avoid crashes
+# device match
 mse2psnr = lambda x : -10. * torch.log(x) / torch.log(torch.Tensor([10.]).to(x.device))
 to8b = lambda x : (255*np.clip(x,0,1)).astype(np.uint8)
 
@@ -203,11 +203,9 @@ def sample_pdf(bins, weights, N_samples, det=False, pytest=False):
 
     # Take uniform samples
     if det:
-        # Be explicit about the device, otherwise MPS and CPU tensors might mix up
         u = torch.linspace(0., 1., steps=N_samples, device=cdf.device)
         u = u.expand(list(cdf.shape[:-1]) + [N_samples])
     else:
-        # Be explicit about the device, otherwise MPS and CPU tensors might mix up
         u = torch.rand(list(cdf.shape[:-1]) + [N_samples], device=cdf.device)
 
     # Pytest, overwrite u with numpy's fixed random numbers
@@ -231,7 +229,7 @@ def sample_pdf(bins, weights, N_samples, det=False, pytest=False):
 
 
     matched_shape = [inds_g.shape[0], inds_g.shape[1], cdf.shape[-1]]
-    # MPS sometimes struggles with gather on non-contiguous expand views, so we force contiguous layout here
+    # MPS fix
     cdf_g = torch.gather(cdf.unsqueeze(1).expand(matched_shape).contiguous(), 2, inds_g)
     bins_g = torch.gather(bins.unsqueeze(1).expand(matched_shape).contiguous(), 2, inds_g)
 

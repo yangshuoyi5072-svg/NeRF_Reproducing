@@ -1,7 +1,5 @@
 #!/bin/bash
-# parallel_viz_render.sh
-# Dual-worker parallel rendering for Hotdog evolution images.
-# Doubles throughput by splitting the list of checkpoints.
+# parallel render for hotdog
 
 EXP_NAME="hotdog_viz_100k"
 LOG_DIR="./logs/${EXP_NAME}"
@@ -19,13 +17,13 @@ render_worker() {
     echo "Worker ${worker_id} started."
     
     for i in "${!ckpt_list[@]}"; do
-        # Modulus check to split work
+        # Split work
         if (( i % total_workers == worker_id )); then
             local ckpt="${ckpt_list[$i]}"
             local iter=$(basename "$ckpt" .tar)
             local image_path="${OUTPUT_DIR}/${iter}.png"
             
-            # Skip if already exists
+            # Skip existing
             if [ -f "$image_path" ]; then
                 continue
             fi
@@ -46,7 +44,7 @@ render_worker() {
     echo "Worker ${worker_id} finished."
 }
 
-# Get all checkpoints and sort them
+# All checkpoints
 CKPTS=$(ls ${LOG_DIR}/*.tar | sort -V)
 
 echo "Starting Parallel Evolution Rendering (2 Workers)..."

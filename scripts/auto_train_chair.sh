@@ -1,23 +1,20 @@
 #!/bin/bash
-# Automatic Training Script for Chair Few-Shot Ablation
-# Each task runs for 20,000 iterations (approx. 1.5h per task on MPS)
+# Training script for chair few-shot
 
 export PYTHONPATH=$PYTHONPATH:.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 
-# 1. Train Chair Vanilla (8-view, 20k)
-echo "Starting Chair Vanilla (8-view, 20k iters)..."
-/opt/miniconda3/envs/nerf_env/bin/python "$ROOT_DIR/run_nerf.py" \
+# Train Chair Vanilla (8-view, 20k)
+echo "Starting Chair Vanilla..."
     --config "$ROOT_DIR/configs/chair.txt" \
     --num_views 8 \
     --N_iters 20000 \
     --expname chair_v8_vanilla \
     --no_reload > output_chair_vanilla.log 2>&1
 
-# 2. Train Chair Mask/DS (8-view, 20k)
-echo "Starting Chair Mask (8-view, 20k iters)..."
-/opt/miniconda3/envs/nerf_env/bin/python "$ROOT_DIR/run_nerf.py" \
+# Train Chair Mask/DS (8-view, 20k)
+echo "Starting Chair Mask..."
     --config "$ROOT_DIR/configs/chair.txt" \
     --num_views 8 \
     --N_iters 20000 \

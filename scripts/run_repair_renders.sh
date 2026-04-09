@@ -1,20 +1,17 @@
 #!/bin/bash
+# fix failed renders
 
 # Configuration and paths
 PYTHON_BIN="/opt/miniconda3/envs/nerf_env/bin/python"
 CHUNK_SIZE=8192
 
-# List of models to render (Remade for failed ones)
-# Format: config_path|ckpt_path|expname
+# models to fix
 MODELS=(
     "logs/lego_v8_vanilla/config.txt|logs/lego_v8_vanilla/010000.tar|lego_v8_vanilla"
     "logs/lego_v8_mask_ds_view8/config.txt|logs/lego_v8_mask_ds_view8/010000.tar|lego_v8_mask_ds_view8"
 )
 
-echo "Starting REPAIRED cinematic rendering task..."
-echo "Total models to fix: ${#MODELS[@]}"
-echo "Resolution: 400x400"
-echo "Speed mode: --fast (N_importance=64)"
+echo "Repair rendering..."
 
 for MODEL_INFO in "${MODELS[@]}"; do
     CONFIG=$(echo $MODEL_INFO | cut -d'|' -f1)
@@ -23,12 +20,10 @@ for MODEL_INFO in "${MODELS[@]}"; do
     
     echo "---------------------------------------------------"
     echo "Rendering model: $EXPNAME"
-    echo "Using config: $CONFIG"
-    echo "Forcing CKPT: $CKPT"
     
     $PYTHON_BIN render_cinematic.py --config "$CONFIG" --ckpt "$CKPT" --expname "$EXPNAME" --fast --chunk $CHUNK_SIZE
     
     echo "Finished rendering $EXPNAME"
 done
 
-echo "Repair rendering tasks completed successfully."
+echo "Repair finished"

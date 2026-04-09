@@ -19,10 +19,9 @@ from core.loaders.load_blender import load_blender_data
 from core.loaders.load_LINEMOD import load_LINEMOD_data
 
 
-# Use MPS backend to speed things up on Macs
+# Use MPS for Macs
 if torch.backends.mps.is_available():
     device = torch.device("mps")
-    # Set default device to mps to avoid silent cpu fallbacks
     if hasattr(torch, 'set_default_device'):
         torch.set_default_device('mps')
 elif torch.cuda.is_available():
@@ -34,8 +33,7 @@ DEBUG = False
 
 
 def batchify(fn, chunk):
-    """Constructs a version of 'fn' that applies to smaller batches.
-    """
+    """Batched function wrapper"""
     if chunk is None:
         return fn
     def ret(inputs):
@@ -44,8 +42,7 @@ def batchify(fn, chunk):
 
 
 def run_network(inputs, viewdirs, fn, embed_fn, embeddirs_fn, netchunk=1024*64):
-    """Prepares inputs and applies network 'fn'.
-    """
+    """Apply network"""
     inputs_flat = torch.reshape(inputs, [-1, inputs.shape[-1]])
     embedded = embed_fn(inputs_flat)
 
@@ -61,8 +58,7 @@ def run_network(inputs, viewdirs, fn, embed_fn, embeddirs_fn, netchunk=1024*64):
 
 
 def batchify_rays(rays_flat, chunk=1024*32, **kwargs):
-    """Render rays in smaller minibatches to avoid OOM.
-    """
+    """Render rays in chunks"""
     all_ret = {}
     for i in range(0, rays_flat.shape[0], chunk):
         ret = render_rays(rays_flat[i:i+chunk], **kwargs)
@@ -512,17 +508,17 @@ def config_parser():
     parser.add_argument("--testskip", type=int, default=8, 
                         help='will load 1/N images from test/val sets, useful for large datasets like deepvoxels')
 
-    ## deepvoxels flags
+    # deepvoxels
     parser.add_argument("--shape", type=str, default='greek', 
                         help='options : armchair / cube / greek / vase')
 
-    ## blender flags
+    # blender
     parser.add_argument("--white_bkgd", action='store_true', 
                         help='set to render synthetic data on a white bkgd (always use for dvoxels)')
     parser.add_argument("--half_res", action='store_true', 
                         help='load blender synthetic data at 400x400 instead of 800x800')
 
-    ## llff flags
+    # llff
     parser.add_argument("--factor", type=int, default=8, 
                         help='downsample factor for LLFF images')
     parser.add_argument("--no_ndc", action='store_true', 
@@ -598,7 +594,7 @@ def train():
             near = 2.
             far = 6.
 
-        # Safely disable white background rendering for RGB-only physical datasets
+        # Use white bkgd if specified
         if args.white_bkgd:
             if images.shape[-1] == 4:
                 images = images[...,:3]*images[...,-1:] + (1.-images[...,-1:])
@@ -655,7 +651,7 @@ def train():
     basedir = args.basedir
     expname = args.expname
 
-    # [DS-NeRF Phase 2] Independent log folder logic
+    # Independent log folder logic
     if args.use_depth and args.num_views > 0:
         expname = expname + f"_ds_view{args.num_views}"
         print(f"[DS-NeRF Phase 2] Updated expname to: {expname}")
@@ -847,10 +843,10 @@ def train():
             loss = img_loss
             psnr = mse2psnr(img_loss)
 
-            # [DS-NeRF Phase 2] Mask / Occupancy Loss
+            # Depth loss
             depth_loss_val = 0.0
             
-            # Dynamic Depth Decay: reduces depth weight by 10x every 10,000 steps
+            # Depth decay
             current_depth_lambda = args.depth_lambda * (0.1 ** (global_step / 10000.0))
 
             if args.use_depth and target_d is not None:
