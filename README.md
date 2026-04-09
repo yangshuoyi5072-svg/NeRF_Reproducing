@@ -1,10 +1,10 @@
 # NeRF Reproduction & Apple Silicon Optimization (IG3D Course Project)
 
-This repository is a reproduction of the [NeRF](http://www.matthewtancik.com/nerf) (Neural Radiance Fields) method, based on the `nerf-pytorch` implementation. Our project focuses on optimizing the pipeline for modern hardware (Apple Silicon) and enhancing training stability with depth supervision.
+This repository is a reproduction of the [NeRF](http://www.matthewtancik.com/nerf) (Neural Radiance Fields) method, based on the `nerf-pytorch` implementation. This project focuses on optimizing the pipeline for modern hardware (Apple Silicon) and enhancing training stability with depth supervision.
 
-## What we did (Key Improvements)
+## What I did (Key Improvements)
 
-Compared to the original paper and the base `nerf-pytorch` code, we made several modifications to make it more efficient and robust for this project:
+Compared to the original paper and the base `nerf-pytorch` code, I made several modifications to make it more efficient and robust for this project:
 
 1.  **Apple Silicon (MPS) Acceleration**:
     *   Adapted the code to support the **Metal Performance Shaders (MPS)** backend.
@@ -32,7 +32,7 @@ pip install -r requirements.txt
 ## How To Run?
 
 ### 1. Training with MPS Acceleration
-To train a model on a Mac using our optimized code:
+To train a model on a Mac using my optimized code:
 ```bash
 python run_nerf.py --config configs/chair.txt
 ```
