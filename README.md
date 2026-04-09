@@ -47,15 +47,20 @@ python run_nerf.py --config configs/chair.txt --use_depth --depth_lambda 0.1
 ### 3. Fast Parallel Rendering
 To generate high-quality cinematic videos using multiple workers:
 ```bash
-bash parallel_cinematic_render.sh
+bash scripts/parallel_cinematic_render.sh
 ```
-After rendering, use `generate_final_video.py` to combine the frames into a final MP4.
+*(Note: Always run automation scripts from the project root)*
+
+After rendering, use `python tools/generate_final_video.py` to combine the frames into a final MP4.
 
 ## Project Structure
 *   `run_nerf.py`: Main training script (updated with MPS and Depth Loss).
-*   `parallel_cinematic_render.sh`: Main script for fast video production.
+*   `render_cinematic.py`: Specialized script for high-quality camera trajectories.
+*   `core/`: Core modules including data `loaders/` and coordinate `helpers.py`.
+*   `scripts/`: All bash scripts for automated training and parallel rendering.
+*   `tools/`: Utility Python scripts for evaluation and video post-processing.
 *   `configs/`: Contains optimized parameters for different scenes (Lego, Chair, etc.).
-*   `MPS_ADAPTATION_REPORT.md`: A detailed report on the technical changes for Mac support.
+*   `docs/`: Detailed reports on MPS adaptation and experiment results.
 
 ## Citation & Credits
 This project is based on the original [nerf-pytorch](https://github.com/yenchenlin/nerf-pytorch) by Yen-Chen Lin and the original NeRF paper.

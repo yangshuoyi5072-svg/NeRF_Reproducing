@@ -11,12 +11,12 @@ from tqdm import tqdm, trange
 import matplotlib.pyplot as plt
 import contextlib
 
-from run_nerf_helpers import *
+from core.helpers import *
 
-from load_llff import load_llff_data
-from load_deepvoxels import load_dv_data
-from load_blender import load_blender_data
-from load_LINEMOD import load_LINEMOD_data
+from core.loaders.load_llff import load_llff_data
+from core.loaders.load_deepvoxels import load_dv_data
+from core.loaders.load_blender import load_blender_data
+from core.loaders.load_LINEMOD import load_LINEMOD_data
 
 
 # Use MPS backend to speed things up on Macs

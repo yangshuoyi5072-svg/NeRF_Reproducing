@@ -1,6 +1,8 @@
 #!/bin/bash
 
 # Configuration and paths
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
+ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 PYTHON_BIN="/opt/miniconda3/envs/nerf_env/bin/python"
 CHUNK_SIZE=8192
 
@@ -25,7 +27,7 @@ for MODEL_INFO in "${MODELS[@]}"; do
     echo "Rendering model: $EXPNAME"
     echo "Using config: $CONFIG"
     
-    $PYTHON_BIN render_cinematic.py --config "$CONFIG" --expname "$EXPNAME" --fast --chunk $CHUNK_SIZE
+    $PYTHON_BIN "$ROOT_DIR/render_cinematic.py" --config "$ROOT_DIR/$CONFIG" --expname "$EXPNAME" --fast --chunk $CHUNK_SIZE
     
     echo "Finished rendering $EXPNAME"
 done

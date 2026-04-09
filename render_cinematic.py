@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 # Import from run_nerf.py
 from run_nerf import config_parser, create_nerf, render, to8b, device
-from run_nerf_helpers import get_rays, ndc_rays
+from core.helpers import get_rays, ndc_rays
 
 def trans_t(t): 
     return torch.Tensor([

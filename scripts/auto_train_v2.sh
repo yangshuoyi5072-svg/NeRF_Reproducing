@@ -3,11 +3,13 @@
 # Enforces no_ndc = True for accurate synthetic reconstruction
 
 export PYTHONPATH=$PYTHONPATH:.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
+ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 
 # 1. Train Chair Mask/DS (8-view, 20k) - PRIORITY FIX
 echo "Restarting Chair Mask (8-view, 20k iters) with NO_NDC=True..."
-/opt/miniconda3/envs/nerf_env/bin/python run_nerf.py \
-    --config configs/chair.txt \
+/opt/miniconda3/envs/nerf_env/bin/python "$ROOT_DIR/run_nerf.py" \
+    --config "$ROOT_DIR/configs/chair.txt" \
     --num_views 8 \
     --N_iters 20000 \
     --use_depth \
@@ -17,8 +19,8 @@ echo "Restarting Chair Mask (8-view, 20k iters) with NO_NDC=True..."
 
 # 2. Train Chair Vanilla (8-view, 20k)
 echo "Restarting Chair Vanilla (8-view, 20k iters) with NO_NDC=True..."
-/opt/miniconda3/envs/nerf_env/bin/python run_nerf.py \
-    --config configs/chair.txt \
+/opt/miniconda3/envs/nerf_env/bin/python "$ROOT_DIR/run_nerf.py" \
+    --config "$ROOT_DIR/configs/chair.txt" \
     --num_views 8 \
     --N_iters 20000 \
     --expname chair_v8_vanilla_physics_fix \
