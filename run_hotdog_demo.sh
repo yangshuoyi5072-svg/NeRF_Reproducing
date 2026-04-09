@@ -11,7 +11,6 @@ $PYTHON_BIN render_cinematic.py \
     --ckpt final_models/hotdog_100k/weights.tar \
     --expname hotdog_100k_demo \
     --single-frame \
-    --gt-pose \
     --zoom 1.0 \
     --chunk 32768
 
