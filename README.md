@@ -38,6 +38,8 @@ bash run_hotdog_demo.sh
 ```
 *(Result will be saved to `./logs/hotdog_100k_demo/cinematic_submission/rgb_frames/000.png`)*
 
+![Hotdog Demo](imgs/hotdog_demo.png)
+
 ## How To Run?
 
 ### 1. Training with MPS Acceleration
