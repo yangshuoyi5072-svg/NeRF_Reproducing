@@ -252,7 +252,7 @@ def main():
     # Calibration
     if getattr(args, 'gt_pose', False):
         print("CALIBRATION MODE: Overriding path with Test Dataset Pose 0")
-        from load_blender import load_blender_data
+        from core.loaders.load_blender import load_blender_data
         _, poses, _, _, _, i_split = load_blender_data(args.datadir, half_res=True)
         gt_pose = torch.Tensor(poses[i_split[2][0]]) # First test pose
         rgb_poses = gt_pose[None, ...]
