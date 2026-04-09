@@ -3,6 +3,7 @@ basedir = ./logs
 datadir = ./data/nerf_synthetic/chair
 dataset_type = blender
 
+no_ndc = True
 no_batching = True
 
 use_viewdirs = True

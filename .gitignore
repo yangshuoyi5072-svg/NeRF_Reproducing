@@ -9,3 +9,8 @@ data/*
 logs/*
 SpatialVID_HQ_Dataset/
 .DS_Store
+
+# Logs and temp files
+*.log
+*pid.txt
+tmp_*.txt
