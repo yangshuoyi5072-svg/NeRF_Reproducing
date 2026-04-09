@@ -60,7 +60,6 @@ After rendering, use `python tools/generate_final_video.py` to combine the frame
 *   `scripts/`: All bash scripts for automated training and parallel rendering.
 *   `tools/`: Utility Python scripts for evaluation and video post-processing.
 *   `configs/`: Contains optimized parameters for different scenes (Lego, Chair, etc.).
-*   `docs/`: Detailed reports on MPS adaptation and experiment results.
 
 ## Citation & Credits
 This project is based on the original [nerf-pytorch](https://github.com/yenchenlin/nerf-pytorch) by Yen-Chen Lin and the original NeRF paper.
