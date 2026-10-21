@@ -28,6 +28,12 @@ cd NeRF_Reproducing
 # Install dependencies (Recommend using a Conda environment)
 pip install -r requirements.txt
 ```
+## Demo Video
+
+[![Watch the Demo Video](imgs/demo_preview.png)](https://drive.google.com/drive/home?dmr=1&ec=wgc-drive-%5Bmodule%5D-goto)
+
+> 💡 **Online Preview**: Click the image above or [Open Demo Video on Google Drive](https://drive.google.com/drive/home?dmr=1&ec=wgc-drive-%5Bmodule%5D-goto).
+
 
 ## Quick Demo (Hotdog 100k)
 
